@@ -9,19 +9,32 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
-    },
+      "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": "AIzaSyBwwgwaqn4gwagUA4wouHfEehHytZLk_H8"
+      }
+    },  
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
+      },
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBwwgwaqn4gwagUA4wouHfEehHytZLk_H8"
+        }
       },
       "edgeToEdgeEnabled": true
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBwwgwaqn4gwagUA4wouHfEehHytZLk_H8"
+        }
+      }
     },
     "plugins": [
       "expo-router",
@@ -33,7 +46,16 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      "expo-location"
     ],
     "experiments": {
       "typedRoutes": true
