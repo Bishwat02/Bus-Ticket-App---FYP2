@@ -1,54 +1,38 @@
 // app/booking/book.tsx
-// Main screen for booking tickets
+// Booking Screen with live fare, total fare, loyalty points, and redirect to payment screen
 
-import React, { useState } from 'react';
-import { View, Text, Button, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Button,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
-import { createBookingWithCustomId } from '../seeder';
+import {
+  getBusTypeOptions,
+  getCityOptions,
+  getTripTypeOptions,
+} from '../../src/utils/seeder';
 
-// City options
-const cityOptions = [
-  { label: 'Subang Jaya', value: 'Subang Jaya' },
-  { label: 'Kuala Lumpur', value: 'Kuala Lumpur' },
-  { label: 'Penang', value: 'Penang' },
-  { label: 'Ipoh', value: 'Ipoh' },
-  { label: 'Malacca', value: 'Malacca' },
-  { label: 'Johor Bahru', value: 'Johor Bahru' },
-  { label: 'Kota Kinabalu', value: 'Kota Kinabalu' },
-  { label: 'Kuching', value: 'Kuching' },
-  { label: 'Langkawi', value: 'Langkawi' },
-  { label: 'Cameron Highlands', value: 'Cameron Highlands' }
-];
-
-// Bus types
-const busTypeOptions = [
-  { label: 'Economy', value: 'Economy' },
-  { label: 'Business', value: 'Business' },
-  { label: 'VIP', value: 'VIP' }
-];
-
-// Trip types
-const tripTypeOptions = [
-  { label: 'One-way', value: 'One-way' },
-  { label: 'Round-trip', value: 'Round-trip' }
-];
-
-// Fare table mock
-const fareTable: Record<string, number> = {
-  'Subang Jaya-Kuala Lumpur': 15,
-  'Kuala Lumpur-Penang': 45,
-  'Penang-Ipoh': 25,
-  'Malacca-Johor Bahru': 40,
-  'Kuala Lumpur-Johor Bahru': 50,
-  'Kota Kinabalu-Kuching': 60,
-  'Langkawi-Cameron Highlands': 70,
-};
-
-// Fare calculation
 const getFare = (origin: string, destination: string, busType: string): number => {
   const key = `${origin}-${destination}`;
   const reverseKey = `${destination}-${origin}`;
+  const fareTable: Record<string, number> = {
+    'Subang Jaya-Kuala Lumpur': 15,
+    'Kuala Lumpur-Penang': 45,
+    'Penang-Ipoh': 25,
+    'Malacca-Johor Bahru': 40,
+    'Kuala Lumpur-Johor Bahru': 50,
+    'Kota Kinabalu-Kuching': 60,
+    'Langkawi-Cameron Highlands': 70,
+  };
   let baseFare = fareTable[key] || fareTable[reverseKey] || 30;
 
   switch (busType) {
@@ -61,7 +45,8 @@ const getFare = (origin: string, destination: string, busType: string): number =
   }
 };
 
-const BookingScreen = () => {
+// const BookingScreen = () => {
+export default function Book() {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [busType, setBusType] = useState('Economy');
@@ -72,12 +57,33 @@ const BookingScreen = () => {
   const [showTravelPicker, setShowTravelPicker] = useState(false);
   const [showReturnPicker, setShowReturnPicker] = useState(false);
 
-  // Dropdown control
   const [originOpen, setOriginOpen] = useState(false);
   const [destinationOpen, setDestinationOpen] = useState(false);
   const [busTypeOpen, setBusTypeOpen] = useState(false);
   const [passengersOpen, setPassengersOpen] = useState(false);
   const [tripTypeOpen, setTripTypeOpen] = useState(false);
+
+  const [calculatedFare, setCalculatedFare] = useState(0);
+  const [totalFare, setTotalFare] = useState(0);
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
+
+  useEffect(() => {
+    if (origin && destination && busType && origin !== destination) {
+      const fare = getFare(origin, destination, busType);
+      const count = parseInt(passengers || '1');
+      const isRoundTrip = tripType === 'Round-trip';
+      const total = fare * count * (isRoundTrip ? 2 : 1);
+      const points = Math.floor(total / 5);//1 point for every RM5 spent
+
+      setCalculatedFare(fare);
+      setTotalFare(total);
+      setLoyaltyPoints(points);
+    } else {
+      setCalculatedFare(0);
+      setTotalFare(0);
+      setLoyaltyPoints(0);
+    }
+  }, [origin, destination, busType, passengers, tripType]);
 
   const handleSubmit = async () => {
     if (!origin || !destination || !busType) {
@@ -90,41 +96,30 @@ const BookingScreen = () => {
       return;
     }
 
-    const baseFare = getFare(origin, destination, busType);
-    const passengerCount = parseInt(passengers);
-    let totalFare = baseFare * passengerCount;
-    if (tripType === 'Round-trip') totalFare *= 2;
+    const passengerCount = parseInt(passengers || '1');
 
-    const loyaltyPoints = Math.floor(totalFare / 10); // 1 point per RM10
-
-    const booking = {
-      origin,
-      destination,
-      busType,
-      passengers: passengerCount,
-      tripType,
-      travelDate: travelDate.toISOString(),
-      returnDate: tripType === 'Round-trip' ? returnDate.toISOString() : null,
-      fare: baseFare,
-      totalFare,
-      loyaltyPoints,
-      timestamp: new Date().toISOString(),
-    };
-
-    try {
-      const docId = await createBookingWithCustomId(booking);
-      Alert.alert(
-        'Booking Successful!',
-        `Booking ID: ${docId}\nYou've earned ${loyaltyPoints} loyalty points.`
-      );
-    } catch (error) {
-      console.error('Booking failed:', error);
-      Alert.alert('Error', 'Failed to create booking. Please try again.');
-    }
+    // Pass booking details to payment screen instead of saving here
+    router.push({
+      pathname: '/booking/bookingConfirmation',
+      params: {
+        origin,
+        destination,
+        date: travelDate.toDateString(),
+        time: '10:00 AM',
+        passengers: String(passengerCount),
+        busType,
+        luggage: 'false',
+        meal: 'false',
+        totalFare: String(totalFare),
+        tripType,
+        returnDate: tripType === 'Round-trip' ? returnDate.toDateString() : '',
+        loyaltyPoints: String(loyaltyPoints),
+      },
+    });
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <Text style={styles.header}>Bus Ticket Booking</Text>
 
       <Text style={styles.label}>Origin</Text>
@@ -133,11 +128,12 @@ const BookingScreen = () => {
         setOpen={setOriginOpen}
         value={origin}
         setValue={setOrigin}
-        items={cityOptions}
-        containerStyle={styles.dropdownContainer}
-        style={styles.dropdown}
-        dropDownContainerStyle={styles.dropdown}
+        items={getCityOptions()}
         placeholder="Select origin"
+        zIndex={5000}
+        zIndexInverse={1000}
+        style={styles.dropdown}
+        containerStyle={styles.dropdownContainer}
       />
 
       <Text style={styles.label}>Destination</Text>
@@ -146,11 +142,12 @@ const BookingScreen = () => {
         setOpen={setDestinationOpen}
         value={destination}
         setValue={setDestination}
-        items={cityOptions}
-        containerStyle={styles.dropdownContainer}
-        style={styles.dropdown}
-        dropDownContainerStyle={styles.dropdown}
+        items={getCityOptions()}
         placeholder="Select destination"
+        zIndex={4000}
+        zIndexInverse={2000}
+        style={styles.dropdown}
+        containerStyle={styles.dropdownContainer}
       />
 
       <Text style={styles.label}>Bus Type</Text>
@@ -159,24 +156,26 @@ const BookingScreen = () => {
         setOpen={setBusTypeOpen}
         value={busType}
         setValue={setBusType}
-        items={busTypeOptions}
-        containerStyle={styles.dropdownContainer}
-        style={styles.dropdown}
-        dropDownContainerStyle={styles.dropdown}
+        items={getBusTypeOptions()}
         placeholder="Select bus type"
+        zIndex={3000}
+        zIndexInverse={3000}
+        style={styles.dropdown}
+        containerStyle={styles.dropdownContainer}
       />
 
-      <Text style={styles.label}>Number of Passengers</Text>
+      <Text style={styles.label}>Passengers</Text>
       <DropDownPicker
         open={passengersOpen}
         setOpen={setPassengersOpen}
         value={passengers}
         setValue={setPassengers}
         items={Array.from({ length: 10 }, (_, i) => ({ label: `${i + 1}`, value: `${i + 1}` }))}
-        containerStyle={styles.dropdownContainer}
-        style={styles.dropdown}
-        dropDownContainerStyle={styles.dropdown}
         placeholder="Select passengers"
+        zIndex={2000}
+        zIndexInverse={4000}
+        style={styles.dropdown}
+        containerStyle={styles.dropdownContainer}
       />
 
       <Text style={styles.label}>Trip Type</Text>
@@ -185,11 +184,12 @@ const BookingScreen = () => {
         setOpen={setTripTypeOpen}
         value={tripType}
         setValue={setTripType}
-        items={tripTypeOptions}
-        containerStyle={styles.dropdownContainer}
-        style={styles.dropdown}
-        dropDownContainerStyle={styles.dropdown}
+        items={getTripTypeOptions()}
         placeholder="Select trip type"
+        zIndex={1000}
+        zIndexInverse={5000}
+        style={styles.dropdown}
+        containerStyle={styles.dropdownContainer}
       />
 
       <Text style={styles.label}>Travel Date</Text>
@@ -200,14 +200,12 @@ const BookingScreen = () => {
         <DateTimePicker
           value={travelDate}
           mode="date"
-          display="default"
-          minimumDate={new Date()}
+          display={Platform.OS === 'ios' ? 'inline' : 'default'}
           onChange={(event, selectedDate) => {
-            if (event.type === 'set' && selectedDate) {
-              setTravelDate(selectedDate);
-            }
+            if (event.type === 'set' && selectedDate) setTravelDate(selectedDate);
             setShowTravelPicker(false);
           }}
+          minimumDate={new Date()}
         />
       )}
 
@@ -221,20 +219,28 @@ const BookingScreen = () => {
             <DateTimePicker
               value={returnDate}
               mode="date"
-              display="default"
-              minimumDate={travelDate}
+              display={Platform.OS === 'ios' ? 'inline' : 'default'}
               onChange={(event, selectedDate) => {
-                if (event.type === 'set' && selectedDate) {
-                  setReturnDate(selectedDate);
-                }
+                if (event.type === 'set' && selectedDate) setReturnDate(selectedDate);
                 setShowReturnPicker(false);
               }}
+              minimumDate={travelDate}
             />
           )}
         </>
       )}
 
-      <Button title="Submit Booking" onPress={handleSubmit} />
+      {calculatedFare > 0 && (
+        <View style={styles.summaryBox}>
+          <Text style={styles.summaryText}>Fare per Person: RM {calculatedFare.toFixed(2)}</Text>
+          <Text style={styles.summaryText}>Total Fare: RM {totalFare.toFixed(2)}</Text>
+          <Text style={styles.summaryText}>Loyalty Points: {loyaltyPoints}</Text>
+        </View>
+      )}
+
+      <View style={{ marginTop: 20 }}>
+        <Button title="Proceed to Payment" onPress={handleSubmit} color="#2563eb" />
+      </View>
     </ScrollView>
   );
 };
@@ -242,7 +248,7 @@ const BookingScreen = () => {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#f9fafb',
   },
   header: {
     fontSize: 24,
@@ -251,24 +257,37 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   label: {
-    marginBottom: 5,
+    marginTop: 10,
+    marginBottom: 4,
     fontSize: 16,
   },
   dropdownContainer: {
-    height: 40,
-    marginBottom: 15,
+    marginBottom: 12,
   },
   dropdown: {
-    backgroundColor: '#fff',
-    borderColor: '#ccc',
+    backgroundColor: '#ffffff',
+    borderColor: '#cbd5e1',
   },
   dateInput: {
-    padding: 10,
+    padding: 12,
     backgroundColor: '#fff',
-    borderColor: '#ccc',
+    borderColor: '#cbd5e1',
     borderWidth: 1,
+    borderRadius: 6,
     marginBottom: 15,
+  },
+  summaryBox: {
+    marginTop: 15,
+    backgroundColor: '#e0f2fe',
+    padding: 12,
+    borderRadius: 8,
+  },
+  summaryText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
   },
 });
 
-export default BookingScreen;
+
+// export default BookingScreen;

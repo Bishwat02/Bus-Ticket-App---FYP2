@@ -1,35 +1,71 @@
 // seeder.ts
+// Seeder for dummy data in Firestore and shared dropdown options
+
 import {
-  getFirestore,
   collection,
-  setDoc,
-  getDocs,
-  getDoc,
-  doc,
-  updateDoc,
   deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  query,
+  setDoc,
+  updateDoc,
+  where,
 } from 'firebase/firestore';
-import { auth } from '../src/services/firebaseConfig';
-import { getFareForTrip } from '../src/utils/fareUtils';
-import { ensureUserInFirestore } from '../src/utils/firestoreUtils';
+import { auth } from '../services/firebaseConfig';
+import { getFareForTrip } from './fareUtils';
+import { ensureUserInFirestore } from './firestoreUtils';
 
 const db = getFirestore();
 
-//
-// ─── BOOKINGS SEEDER ─────────────────────────────────────────────────────────────
-//
+// ─── SHARED DROPDOWN OPTIONS ─────────────────────────────────────────────
 
-export async function createBookingWithCustomId(booking: any) {
+export const cities = [
+  'Subang Jaya',
+  'Kuala Lumpur',
+  'Penang',
+  'Ipoh',
+  'Malacca',
+  'Johor Bahru',
+  'Kota Kinabalu',
+  'Kuching',
+  'Langkawi',
+  'Cameron Highlands',
+];
+
+export const busTypes = ['Economy', 'Business', 'VIP'];
+export const tripTypes = ['One-way', 'Round-trip'];
+
+export function getCityOptions() {
+  return cities.map(city => ({ label: city, value: city }));
+}
+
+export function getBusTypeOptions() {
+  return busTypes.map(type => ({ label: type, value: type }));
+}
+
+export function getTripTypeOptions() {
+  return tripTypes.map(type => ({ label: type, value: type }));
+}
+
+// ─── BOOKINGS SEEDER ─────────────────────────────────────────────────────────────
+
+export async function createBookingWithCustomId(booking: any, isDummy = false) {
   const randomId = Math.random().toString(36).substring(2, 10);
   const docId = `BT${randomId}`;
   const user = auth.currentUser;
   const userId = user ? user.uid : null;
 
   if (user) {
-    await ensureUserInFirestore(user); // ✅ Ensure user exists in Firestore
+    await ensureUserInFirestore(user);
   }
 
-  const bookingWithUser = user ? { ...booking, userId } : booking;
+  const bookingWithUser = {
+    ...booking,
+    userId,
+    isDummy,
+  };
 
   await setDoc(doc(db, 'bookings', docId), bookingWithUser);
 
@@ -67,9 +103,17 @@ export async function deleteBooking(id: string) {
 }
 
 export async function seedDummyBookings() {
-  const cities = ['Subang Jaya', 'Kuala Lumpur', 'Penang', 'Ipoh', 'Malacca', 'Johor Bahru', 'Kota Kinabalu', 'Kuching', 'Langkawi', 'Cameron Highlands'];
-  const busTypes = ['Economy', 'Business', 'VIP'];
-  const tripTypes = ['One-way', 'Round-trip'];
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const existing = await getDocs(
+    query(
+      collection(db, 'bookings'),
+      where('userId', '==', user.uid),
+      where('isDummy', '==', true)
+    )
+  );
+  if (!existing.empty) return;
 
   for (let i = 0; i < 10; i++) {
     const origin = cities[Math.floor(Math.random() * cities.length)];
@@ -97,13 +141,30 @@ export async function seedDummyBookings() {
       returnDate: returnDate ? returnDate.toISOString() : null,
       fare,
       totalFare,
-    });
+    }, true);
   }
 }
 
-//
+// ─── BANK OPTIONS SEEDER ────────────────────────────────────────────────────────────────
+
+export const banks = [
+  'Maybank',
+  'CIMB Bank',
+  'Public Bank',
+  'RHB Bank',
+  'Hong Leong Bank',
+  'Bank Islam',
+  'Ambank',
+  'UOB Malaysia',
+  'OCBC Bank',
+  'HSBC Malaysia',
+];
+
+export function getBankOptions() {
+  return banks.map(bank => ({ label: bank, value: bank }));
+}
+
 // ─── LOYALTY POINTS SEEDER ───────────────────────────────────────────────────────
-//
 
 export async function createLoyaltyWithCustomId(loyaltyData: any) {
   const randomId = Math.random().toString(36).substring(2, 10);
@@ -135,7 +196,7 @@ export async function deleteLoyalty(id: string) {
 
 export async function seedDummyLoyalty() {
   for (let i = 0; i < 5; i++) {
-    const points = Math.floor(Math.random() * 600); // 0–599
+    const points = Math.floor(Math.random() * 600);
     await createLoyaltyWithCustomId({
       points,
       rewardsRedeemed: [],
@@ -144,27 +205,25 @@ export async function seedDummyLoyalty() {
   }
 }
 
-//
 // ─── REWARDS SEEDER ──────────────────────────────────────────────────────
-//
 
 export async function seedRewards() {
   const rewards = [
     {
       name: 'Free Ticket',
-      pointsRequired: 500,
+      pointsRequired: 30,
       expiryDate: new Date(Date.now() + 14 * 86400000).toISOString(),
       quantity: 10,
     },
     {
       name: 'Free Popcorn',
-      pointsRequired: 150,
+      pointsRequired: 15,
       expiryDate: new Date(Date.now() + 30 * 86400000).toISOString(),
       quantity: 50,
     },
     {
       name: 'Surprise Gift',
-      pointsRequired: 300,
+      pointsRequired: 50,
       expiryDate: new Date(Date.now() + 7 * 86400000).toISOString(),
       quantity: 20,
     },
@@ -176,9 +235,43 @@ export async function seedRewards() {
   }
 }
 
-//
+// ─── REDEMPTIONS SEEDER ─────────────────────────────────────────────────────────
+
+export async function seedRedemptionsFromRewards() {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const existing = await getDocs(
+    query(collection(db, 'redemptions'), where('userId', '==', user.uid))
+  );
+
+  if (!existing.empty) {
+    console.log('🎟️ Redemptions already exist for this user. Skipping.');
+    return;
+  }
+
+  const rewardSnapshot = await getDocs(collection(db, 'rewards'));
+  type Reward = { id: string; name: string; pointsRequired: number; expiryDate: string; quantity: number };
+  const rewards = rewardSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<Reward, 'id'>) }));
+
+  const redemptions = rewards.map(reward => ({
+    rewardId: reward.id,
+    rewardName: reward.name,
+    userId: user.uid,
+    redeemedAt: new Date().toISOString(),
+    used: false,
+  }));
+
+  const redemptionPromises = redemptions.map(async (redemption, index) => {
+    const docId = `RD${Math.random().toString(36).substring(2, 10)}${index}`;
+    await setDoc(doc(db, 'redemptions', docId), redemption);
+  });
+
+  await Promise.all(redemptionPromises);
+  console.log('🎟️ Seeded redemptions from rewards!');
+}
+
 // ─── TIER LEVEL SEEDER ───────────────────────────────────────────────────
-//
 
 export async function seedTiers() {
   const tiers = [
@@ -205,13 +298,13 @@ export async function seedTiers() {
   }
 }
 
-//
 // ─── MASTER SEED FUNCTION ────────────────────────────────────────────────
-//
 
 export async function seedAllLoyaltyData() {
   await seedDummyLoyalty();
   await seedRewards();
   await seedTiers();
+  await seedRedemptionsFromRewards(); // ✅ Include redemptions
   console.log('🎉 All loyalty-related data seeded successfully!');
 }
+

@@ -1,346 +1,329 @@
 // app/loyalty.tsx
+import { addDoc, collection, getDocs, query, serverTimestamp, where } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  FlatList,
-  TouchableOpacity,
   Alert,
+  Animated,
   Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  getDocs,
-  addDoc,
-} from 'firebase/firestore';
-import { auth } from '../src/services/firebaseConfig';
-import { ProgressBar, Button } from 'react-native-paper';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { auth, db } from '../src/services/firebaseConfig';
 
 interface Reward {
   id: string;
   name: string;
-  pointsRequired: number;
   description: string;
-  redeemed?: boolean;
+  pointsRequired: number;
+  image: any;
 }
 
-interface Redemption {
-  rewardId: string;
-  rewardName: string;
-  pointsSpent: number;
-  redeemedAt: Date;
+interface Booking {
+  id: string;
+  totalFare: number;
+  pointsEarned: number;
+  travelDate: string;
 }
 
-const rewardList: Reward[] = [
-  {
-    id: 'r1',
-    name: '5% Off Ticket',
-    pointsRequired: 100,
-    description: 'Enjoy 5% off on your next booking!',
-  },
-  {
-    id: 'r2',
-    name: 'Free Seat Upgrade',
-    pointsRequired: 200,
-    description: 'Upgrade to a premium seat for free.',
-  },
-  {
-    id: 'r3',
-    name: 'RM10 Travel Credit',
-    pointsRequired: 300,
-    description: 'Redeem RM10 worth of travel credit.',
-  },
-];
+export default function Loyalty() {
+  const [points, setPoints] = useState(0);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [fadeAnim] = useState(new Animated.Value(0));
 
-export default function LoyaltyScreen() {
-  const [totalFare, setTotalFare] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [redeemedRewards, setRedeemedRewards] = useState<string[]>([]);
-  const [redemptions, setRedemptions] = useState<Redemption[]>([]);
-
-  const calculatePoints = (fare: number) => Math.floor(fare);
+  const rewards: Reward[] = [
+    {
+      id: '1',
+      name: 'Buy 1 Free 1',
+      description: 'Buy 1 Get 1 Free ticket.',
+      pointsRequired: 150,
+      image: require('../assets/images/B1F1.png'),
+    },
+    {
+      id: '2',
+      name: 'RM10 off',
+      description: 'Get a RM10 discount for your next ride.',
+      pointsRequired: 100,
+      image: require('../assets/images/voucher.jpeg'),
+    },
+    {
+      id: '3',
+      name: 'Free Ticket',
+      description: 'Get a free one-way/round-trip ticket.',
+      pointsRequired: 200,
+      image: require('../assets/images/free-ticket.png'),
+    },
+  ];
 
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        const db = getFirestore();
-        const user = auth.currentUser;
-        if (!user) return;
+      const user = auth.currentUser;
+      if (!user) return;
 
-        const bookingsQuery = query(collection(db, 'bookings'), where('userId', '==', user.uid));
-        const bookingSnap = await getDocs(bookingsQuery);
+      const bookingQuery = query(
+        collection(db, 'bookings'),
+        where('userId', '==', user.uid)
+      );
+      const bookingSnap = await getDocs(bookingQuery);
 
-        let total = 0;
-        bookingSnap.forEach(doc => {
-          const data = doc.data();
-          if (data.totalFare) total += parseFloat(data.totalFare);
+      let total = 0;
+      const bookingList: Booking[] = [];
+
+      bookingSnap.forEach((doc) => {
+        const data = doc.data();
+        const fare = parseFloat(data.totalFare) || 0;
+        const earned = Math.floor(fare / 5);
+        total += earned;
+
+        bookingList.push({
+          id: doc.id,
+          totalFare: fare,
+          pointsEarned: earned,
+          travelDate: new Date(data.travelDate).toLocaleDateString(),
         });
-        setTotalFare(total);
+      });
 
-        const redemptionsQuery = query(collection(db, 'redemptions'), where('userId', '==', user.uid));
-        const redemptionSnap = await getDocs(redemptionsQuery);
+      const redemptionQuery = query(
+        collection(db, 'redemptions'),
+        where('userId', '==', user.uid)
+      );
+      const redemptionSnap = await getDocs(redemptionQuery);
 
-        const redeemed: string[] = [];
-        const redemptionData: Redemption[] = [];
+      let spent = 0;
+      redemptionSnap.forEach((doc) => {
+        const data = doc.data();
+        spent += data.pointsSpent || 0;
+      });
 
-        redemptionSnap.forEach(doc => {
-          const data = doc.data();
-          if (data.rewardId) {
-            redeemed.push(data.rewardId);
-            redemptionData.push({
-              rewardId: data.rewardId,
-              rewardName: data.rewardName,
-              pointsSpent: data.pointsSpent,
-              redeemedAt: data.redeemedAt?.toDate?.() || new Date(),
-            });
-          }
-        });
-
-        setRedeemedRewards(redeemed);
-        setRedemptions(redemptionData);
-      } catch (err) {
-        console.error('Error fetching loyalty data:', err);
-      } finally {
-        setLoading(false);
-      }
+      setPoints(total - spent);
+      setBookings(bookingList);
     };
 
     fetchData();
   }, []);
 
-  const points = calculatePoints(totalFare);
-  const level = points >= 300 ? 'Gold' : points >= 200 ? 'Silver' : points >= 100 ? 'Bronze' : 'Newbie';
-  const nextTierPoints = level === 'Newbie' ? 100 : level === 'Bronze' ? 200 : level === 'Silver' ? 300 : null;
-  const progress = nextTierPoints ? Math.min(points / nextTierPoints, 1) : 1;
-
-  const tierIcons: Record<string, string> = {
-    Newbie: 'https://img.icons8.com/ios/100/neutral-emoticon.png',
-    Bronze: 'https://img.icons8.com/color/96/bronze-medal.png',
-    Silver: 'https://img.icons8.com/color/96/silver-medal.png',
-    Gold: 'https://img.icons8.com/color/96/gold-medal.png',
-  };
-
   const handleRedeem = async (reward: Reward) => {
-    if (points < reward.pointsRequired) {
-      Alert.alert('Not Enough Points', 'Earn more loyalty points to redeem this reward.');
-      return;
-    }
+    const user = auth.currentUser;
+    if (!user) return;
 
-    if (redeemedRewards.includes(reward.id)) {
-      Alert.alert('Already Redeemed', 'You have already redeemed this reward.');
+    if (points < reward.pointsRequired) {
+      Alert.alert('Not enough points', 'Earn more points to redeem this reward.');
       return;
     }
 
     try {
-      const db = getFirestore();
-      const user = auth.currentUser;
-      if (!user) return;
-
       await addDoc(collection(db, 'redemptions'), {
         userId: user.uid,
         rewardId: reward.id,
         rewardName: reward.name,
         pointsSpent: reward.pointsRequired,
-        redeemedAt: new Date(),
+        redeemedAt: serverTimestamp(),
+        used: false,
       });
 
-      setRedeemedRewards([...redeemedRewards, reward.id]);
-      setRedemptions([
-        ...redemptions,
-        {
-          rewardId: reward.id,
-          rewardName: reward.name,
-          pointsSpent: reward.pointsRequired,
-          redeemedAt: new Date(),
-        },
-      ]);
+      setPoints((prev) => prev - reward.pointsRequired);
 
-      Alert.alert('Reward Redeemed!', `You successfully redeemed: ${reward.name}`);
-    } catch (err) {
-      console.error('Redemption failed:', err);
-      Alert.alert('Error', 'Failed to redeem the reward. Please try again.');
+      Animated.sequence([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      Alert.alert('Reward Redeemed', `You redeemed: ${reward.name}`);
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to redeem reward.');
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-        <Text style={styles.loadingText}>Fetching your loyalty status...</Text>
-      </View>
-    );
-  }
+  const getTier = () => {
+    if (points >= 300) return 'Platinum';
+    if (points >= 200) return 'Gold';
+    if (points >= 100) return 'Silver';
+    return 'Bronze';
+  };
+
+  const nextTierPoints = () => {
+    if (points < 100) return 100 - points;
+    if (points < 200) return 200 - points;
+    if (points < 300) return 300 - points;
+    return 0;
+  };
 
   return (
-    <View style={styles.container}>
-      {/* Loyalty Summary */}
-      <View style={styles.iconContainer}>
-        <Image source={{ uri: tierIcons[level] }} style={styles.iconImage} />
-      </View>
-      <Text style={styles.title}>Loyalty Points</Text>
-      <Text style={styles.points}>{points} pts</Text>
-      <Text style={styles.fare}>Total Fare Spent: RM {totalFare.toFixed(2)}</Text>
+    <ScrollView style={styles.container}>
+      <Animated.View style={[styles.popup, { opacity: fadeAnim }]}> 
+        <Text style={styles.popupText}>🎉 Redeemed!</Text>
+      </Animated.View>
 
-      <ProgressBar progress={progress} color="#10b981" style={styles.progress} />
-      <Text style={styles.levelText}>Tier: {level} {nextTierPoints && `(Next: ${nextTierPoints} pts)`}</Text>
-
-      {/* Reward Redemption Options */}
-      <Text style={styles.rewardsHeader}>Unlockable Rewards</Text>
-      <FlatList
-        data={rewardList}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.rewardCard}>
-            <View style={styles.rewardInfo}>
-              <MaterialIcons name="card-giftcard" size={28} color="#ef4444" />
-              <View style={{ marginLeft: 12 }}>
-                <Text style={styles.rewardName}>{item.name}</Text>
-                <Text style={styles.rewardDesc}>{item.description}</Text>
-                <Text style={styles.rewardPoints}>{item.pointsRequired} pts required</Text>
-              </View>
-            </View>
-            <Button
-              mode="contained"
-              disabled={points < item.pointsRequired || redeemedRewards.includes(item.id)}
-              onPress={() => handleRedeem(item)}
-              style={styles.redeemBtn}
-            >
-              {redeemedRewards.includes(item.id) ? 'Redeemed' : 'Redeem'}
-            </Button>
-          </View>
+      <Text style={styles.header}>Your Point Card</Text>
+      <View style={styles.cardBox}>
+        <Text style={styles.points}>{points} pts</Text>
+        <Text style={styles.tier}>Tier: {getTier()}</Text>
+        {nextTierPoints() > 0 && (
+          <Text style={styles.nextTier}>Earn {nextTierPoints()} more points to upgrade!</Text>
         )}
-      />
+      </View>
 
-      {/* Redemption History */}
-      {redemptions.length > 0 && (
-        <>
-          <Text style={styles.rewardsHeader}>Your Redeemed Rewards</Text>
-          <FlatList
-            data={redemptions}
-            keyExtractor={(item, index) => `${item.rewardId}-${index}`}
-            renderItem={({ item }) => (
-              <View style={styles.redemptionCard}>
-                <Text style={styles.rewardName}>{item.rewardName}</Text>
-                <Text style={styles.rewardDesc}>Spent: {item.pointsSpent} pts</Text>
-                <Text style={styles.redemptionDate}>
-                  {item.redeemedAt.toLocaleString()}
-                </Text>
-              </View>
-            )}
-          />
-        </>
-      )}
-    </View>
+      <Text style={styles.subHeader}>Available Rewards</Text>
+      {rewards.map((item) => (
+        <View key={item.id} style={styles.card}>
+          <Image source={item.image} style={styles.rewardImage} />
+          <View style={styles.rewardInfo}>
+            <Text style={styles.rewardName}>{item.name}</Text>
+            <Text style={styles.rewardDesc}>{item.description}</Text>
+            <Text style={styles.rewardPoints}>{item.pointsRequired} pts</Text>
+            <TouchableOpacity
+              style={[styles.redeemBtn, points < item.pointsRequired ? styles.disabledBtn : {}]}
+              disabled={points < item.pointsRequired}
+              onPress={() => handleRedeem(item)}
+            >
+              <Text style={styles.redeemText}>Redeem</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ))}
+
+      {/* <Text style={styles.subHeader}>Your Bookings & Points Earned</Text>
+      {bookings.map((b) => (
+        <View key={b.id} style={styles.historyCard}>
+          <Text style={styles.historyText}>RM {b.totalFare.toFixed(2)} — {b.pointsEarned} pts</Text>
+          <Text style={styles.dateText}>{b.travelDate}</Text>
+        </View>
+      ))} */}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  // Existing styles ...
-  // (unchanged from your previous code)
   container: {
     flex: 1,
-    backgroundColor: '#fefce8',
+    backgroundColor: '#fff7ed',
     padding: 20,
   },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
+  popup: {
+    position: 'absolute',
+    top: 80,
+    left: 0,
+    right: 0,
     alignItems: 'center',
-    backgroundColor: '#fefce8',
+    zIndex: 10,
   },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#4b5563',
+  popupText: {
+    backgroundColor: '#22c55e',
+    color: '#fff',
+    fontSize: 18,
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    fontWeight: 'bold',
   },
-  iconContainer: {
-    alignSelf: 'center',
+  header: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#b45309',
     marginBottom: 8,
   },
-  iconImage: {
-    width: 64,
-    height: 64,
-    resizeMode: 'contain',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#92400e',
-    textAlign: 'center',
+  cardBox: {
+    backgroundColor: '#fcd34d',
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginBottom: 20,
   },
   points: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#f59e0b',
-    textAlign: 'center',
+    color: '#7c2d12',
   },
-  fare: {
-    fontSize: 16,
-    color: '#374151',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  progress: {
-    height: 10,
-    borderRadius: 6,
-    backgroundColor: '#d1d5db',
-    marginBottom: 6,
-  },
-  levelText: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#4b5563',
-  },
-  rewardsHeader: {
+  tier: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1e3a8a',
-    marginTop: 20,
-    marginBottom: 10,
+    color: '#92400e',
+    marginTop: 6,
   },
-  rewardCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 14,
+  nextTier: {
+    fontSize: 14,
+    color: '#78350f',
+    marginTop: 4,
+  },
+  subHeader: {
+    fontSize: 20,
+    fontWeight: '600',
     marginBottom: 12,
+    marginTop: 20,
+    color: '#1e3a8a',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    flexDirection: 'row',
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 2,
   },
+  rewardImage: {
+    width: 64,
+    height: 64,
+    resizeMode: 'contain',
+    borderRadius: 8,
+  },
   rewardInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
+    marginLeft: 16,
+    flex: 1,
   },
   rewardName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#1f2937',
+    color: '#374151',
   },
   rewardDesc: {
     fontSize: 14,
     color: '#6b7280',
+    marginVertical: 4,
   },
   rewardPoints: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#9ca3af',
   },
   redeemBtn: {
-    alignSelf: 'flex-end',
-    marginTop: 6,
-  },
-  redemptionCard: {
-    backgroundColor: '#e0f2fe',
-    padding: 14,
+    marginTop: 8,
+    backgroundColor: '#3b82f6',
+    paddingVertical: 8,
     borderRadius: 8,
+    alignItems: 'center',
+  },
+  disabledBtn: {
+    backgroundColor: '#9ca3af',
+  },
+  redeemText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  historyCard: {
+    backgroundColor: '#fef9c3',
+    padding: 14,
+    borderRadius: 10,
     marginBottom: 10,
   },
-  redemptionDate: {
+  historyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  dateText: {
     fontSize: 12,
     color: '#64748b',
     marginTop: 4,

@@ -2,29 +2,27 @@
 // Home Screen for Bus Ticket Booking App
 // Main screen after login: Book tickets, view booking history, loyalty, profile, logout
 
-// app/index.tsx
-
+import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import React, { useEffect, useState } from 'react';
-import { seedDummyBookings } from './seeder';
 import {
-  View,
-  Text,
-  StyleSheet,
   ActivityIndicator,
-  TouchableOpacity,
   Alert,
   Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { auth } from '../src/services/firebaseConfig';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { router } from 'expo-router';
 
-export default function IndexScreen() {
+// export default function IndexScreen() {
+export default function Index() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         router.replace('/login');
       } else {
@@ -36,7 +34,6 @@ export default function IndexScreen() {
   }, []);
 
   const blurAndNavigate = (path: string) => {
-    // 👇 Fix: remove focus before routing (to prevent accessibility warning)
     if (typeof document !== 'undefined') {
       (document.activeElement as HTMLElement | null)?.blur();
     }
@@ -61,8 +58,6 @@ export default function IndexScreen() {
     );
   }
 
-  seedDummyBookings();
-
   return (
     <View style={styles.container}>
       <Image
@@ -71,7 +66,7 @@ export default function IndexScreen() {
         resizeMode="contain"
       />
       <Text style={styles.welcome}>Welcome to</Text>
-      <Text style={styles.title}>Bus Ticket Booking</Text>
+      <Text style={styles.title}>Bus FYP</Text>
 
       <View style={styles.buttonContainer}>
         <TouchableOpacity

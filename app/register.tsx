@@ -1,21 +1,23 @@
 // app/register.tsx
+// Register Screen
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
   Alert,
   Image,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../src/services/firebaseConfig';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
-export default function RegisterScreen() {
+// export default function RegisterScreen() {
+export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

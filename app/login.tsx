@@ -1,26 +1,29 @@
+// app/login.tsx
+// Login Screen
+
+import { router } from 'expo-router';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import React, { useState } from 'react';
 import {
-  View,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  Image,
 } from 'react-native';
-import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../src/services/firebaseConfig';
-import { router } from 'expo-router';
 
-export default function LoginScreen() {
+// export default function LoginScreen() {
+export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const handleLogin = async () => {
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       Alert.alert('Success', 'Login successful!');
       router.replace('/'); // navigate to home screen after login
     } catch (error: any) {
@@ -28,6 +31,21 @@ export default function LoginScreen() {
       Alert.alert('Login Failed', error.message || 'Unknown error');
     }
   };
+
+  // const handleForgotPassword = async () => {
+  //   if (!email.trim()) {
+  //     Alert.alert('Input Needed', 'Please enter your email to reset password.');
+  //     return;
+  //   }
+
+  //   try {
+  //     await sendPasswordResetEmail(auth, email.trim());
+  //     Alert.alert('Email Sent', 'Check your inbox to reset your password.');
+  //   } catch (error: any) {
+  //     console.error('Forgot Password Error:', error);
+  //     Alert.alert('Error', error.message || 'Failed to send reset email.');
+  //   }
+  // };
 
   return (
     <KeyboardAvoidingView
@@ -57,6 +75,10 @@ export default function LoginScreen() {
         onChangeText={setPassword}
         secureTextEntry
       />
+
+      {/* <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotLink}>
+        <Text style={styles.forgotText}>Forgot Password?</Text>
+      </TouchableOpacity> */}
 
       <TouchableOpacity style={styles.button} onPress={handleLogin}>
         <Text style={styles.buttonText}>Login</Text>
@@ -108,9 +130,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 10,
     fontSize: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#cbd5e1',
+  },
+  forgotLink: {
+    alignSelf: 'flex-end',
+    marginBottom: 16,
+  },
+  forgotText: {
+    color: '#3b82f6',
+    fontSize: 14,
+    fontWeight: '600',
   },
   button: {
     backgroundColor: '#3b82f6',

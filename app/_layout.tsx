@@ -1,11 +1,14 @@
 // app/_layout.tsx
-import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { router, Stack } from 'expo-router';
 import { Pressable } from 'react-native';
-import { useNavigation } from 'expo-router';
 
 export default function Layout() {
-  const navigation = useNavigation();
+  const backButton = () => (
+    <Pressable onPress={() => router.back()} style={{ paddingHorizontal: 16 }}>
+      <Ionicons name="arrow-back" size={24} color="#1e3a8a" />
+    </Pressable>
+  );
 
   return (
     <Stack
@@ -15,55 +18,51 @@ export default function Layout() {
         headerTitleStyle: { fontWeight: 'bold' },
       }}
     >
-      {/* No header for index (home) */}
+      {/* Home (no header) */}
       <Stack.Screen name="index" options={{ headerShown: false }} />
 
-      {/* Example with custom back button */}
+      {/* Book Ticket */}
       <Stack.Screen
-        name="book-ticket"
+        name="booking/book"
         options={{
           title: 'Book Ticket',
-          headerLeft: () => (
-            <Pressable onPress={() => navigation.goBack()} style={{ paddingHorizontal: 16 }}>
-              <Ionicons name="arrow-back" size={24} color="#1e3a8a" />
-            </Pressable>
-          ),
+          headerLeft: backButton,
         }}
       />
 
+      {/* Booking History */}
       <Stack.Screen
-        name="history"
+        name="booking/history"
         options={{
           title: 'History',
-          headerLeft: () => (
-            <Pressable onPress={() => navigation.goBack()} style={{ paddingHorizontal: 16 }}>
-              <Ionicons name="arrow-back" size={24} color="#1e3a8a" />
-            </Pressable>
-          ),
+          headerLeft: backButton,
         }}
       />
 
+      {/* Booking Confirmation */}
+      <Stack.Screen
+        name="booking/bookingConfirmation"
+        options={{
+          title: 'Booking Confirmation',
+          headerLeft: backButton,
+        }}
+      />
+
+      {/* Loyalty Program */}
       <Stack.Screen
         name="loyalty"
         options={{
           title: 'Loyalty Program',
-          headerLeft: () => (
-            <Pressable onPress={() => navigation.goBack()} style={{ paddingHorizontal: 16 }}>
-              <Ionicons name="arrow-back" size={24} color="#1e3a8a" />
-            </Pressable>
-          ),
+          headerLeft: backButton,
         }}
       />
 
+      {/* Profile */}
       <Stack.Screen
         name="profile"
         options={{
           title: 'Profile',
-          headerLeft: () => (
-            <Pressable onPress={() => navigation.goBack()} style={{ paddingHorizontal: 16 }}>
-              <Ionicons name="arrow-back" size={24} color="#1e3a8a" />
-            </Pressable>
-          ),
+          headerLeft: backButton,
         }}
       />
     </Stack>
